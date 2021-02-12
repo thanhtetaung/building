@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: building
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-date-keys-as-timestamps: "false"
+  data:
+    mongodb:
+      uri: "mongodb://root:Flexi2014@localhost:27017/building?authSource=admin"
+      auto-index-creation: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: "swagger-ui.html"
+  default-produces-media-type: "application/json"
+logging:
+  level:
+    org.springframework.data.mongodb.core.ReactiveMongoTemplate: DEBUG
+jwt:
+  expiration: 525600
+  secret:
+    key: "and0X3Rva2VuLWJhc2VkX29wZW5hcGlfZm9yX3Jzb2NrZXRfYWNjZXNzX3Rva2Vu"
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+logging:
+  level:
+    org.springframework.data.mongodb.core.ReactiveMongoTemplate: INFO
