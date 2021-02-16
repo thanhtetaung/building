@@ -3,6 +3,7 @@ package com.flextech.building.common.webservice;
 import com.flextech.building.common.webservice.response.ErrorDetail;
 import com.flextech.building.common.webservice.response.ErrorResponse;
 import lombok.extern.apachecommons.CommonsLog;
+import org.springframework.core.codec.DecodingException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -142,6 +143,22 @@ public class CommonExceptionHandler {
         return Mono.empty();
     }
 
+
+    /**
+     * Handle decoding exception
+     *
+     * @param exception
+     * @return a {@code ErrorResponse}
+     */
+    @ExceptionHandler(value = DecodingException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public Mono<ErrorResponse> handleDecodingException(DecodingException exception) {
+        log.error(exception.getMessage(), exception);
+        return Mono.just(new ErrorResponse().builder()
+                .message(exception.getMessage())
+                .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
+                .build());
+    }
 
     /**
      * Handle all other exception

@@ -44,6 +44,11 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
     implementation 'org.apache.pdfbox:pdfbox:2.0.22'
     implementation 'org.apache.pdfbox:pdfbox-tools:2.0.22'
+    implementation 'org.apache.tika:tika-core:2.0.0-ALPHA'
+    implementation platform('software.amazon.awssdk:bom:2.15.0')
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:netty-nio-client'
+
 }
 
 test {
