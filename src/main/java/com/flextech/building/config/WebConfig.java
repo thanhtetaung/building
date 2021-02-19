@@ -15,6 +15,7 @@ import org.springframework.http.codec.json.Jackson2JsonDecoder;
 import org.springframework.http.codec.json.Jackson2JsonEncoder;
 import org.springframework.validation.Validator;
 import org.springframework.validation.beanvalidation.OptionalValidatorFactoryBean;
+import org.springframework.web.reactive.config.CorsRegistry;
 import org.springframework.web.reactive.config.ResourceHandlerRegistry;
 import org.springframework.web.reactive.config.WebFluxConfigurationSupport;
 import org.springframework.web.reactive.resource.WebJarsResourceResolver;
@@ -72,5 +73,14 @@ public class WebConfig extends WebFluxConfigurationSupport {
                 .addResourceLocations("classpath:/META-INF/resources/webjars/")
                 .resourceChain(true)
                 .addResolver(new WebJarsResourceResolver());
+    }
+
+    @Override
+    protected void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedMethods("GET", "POST", "PUT", "DELETE")
+                .allowedOrigins("*")
+                .allowedHeaders("*")
+                .allowCredentials(false);
     }
 }

@@ -18,11 +18,11 @@ public class RegisterRequest {
     private String password;
 
     @NotNull(message = "{error.validation.firstName.empty}")
-    @Size(min = 5, max = 50, message = "{error.validation.firstName.length}")
+    @Size(max = 50, message = "{error.validation.firstName.length}")
     private String firstName;
 
     @NotNull(message = "{error.validation.lastName.empty}")
-    @Size(min = 5, max = 50, message = "{error.validation.lastName.length}")
+    @Size(max = 50, message = "{error.validation.lastName.length}")
     private String lastName;
 
 }

@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.data.domain.ReactiveAuditorAware;
 import org.springframework.data.mongodb.config.EnableReactiveMongoAuditing;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
@@ -94,9 +95,11 @@ public class SecurityConfig {
 
         return http
                 .authorizeExchange()
-                    .pathMatchers("/actuator/**", "/*/login", "/*/register", "/swagger-ui.html", "/webjars/**", "/api-docs/**")
-                .permitAll()
-                    .and()
+                .pathMatchers("/actuator/**", "/*/login", "/*/register", "/swagger-ui.html", "/webjars/**", "/api-docs/**")
+                    .permitAll()
+                .pathMatchers(HttpMethod.OPTIONS)
+                    .permitAll()
+                .and()
                 .httpBasic().disable()
                 .csrf().disable()
                 .formLogin().disable()
