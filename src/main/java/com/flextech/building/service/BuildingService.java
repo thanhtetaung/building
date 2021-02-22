@@ -65,15 +65,26 @@ public class BuildingService {
         if (fileData.getMediaType() == null) {
             fileData.setMediaType(MediaType.APPLICATION_OCTET_STREAM);
         }
+        byte[] data = fileData.getData();
+        if (fileData.getImage() != null) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try {
+                ImageIO.write(fileData.getImage(), "png", baos);
+            } catch (IOException e) {
+                return Mono.error(e);
+            }
+            data = baos.toByteArray();
+        }
+
         CompletableFuture<PutObjectResponse> future = s3client
                 .putObject(PutObjectRequest.builder()
                                 .bucket(s3config.getBucket())
-                                .contentLength((long)fileData.getData().length)
+                                .contentLength((long)data.length)
                                 .key(fileData.getPath())
                                 .contentType(fileData.getMediaType().toString())
                                 .metadata(metadata)
                                 .build(),
-                        AsyncRequestBody.fromBytes(fileData.getData()));
+                        AsyncRequestBody.fromBytes(data));
         return Mono.fromFuture(future)
                 .map(result -> {
                     checkResult(result);
@@ -117,7 +128,7 @@ public class BuildingService {
                     for (int page = 0; page < document.getNumberOfPages(); ++page) {
                         BufferedImage bim = pdfRenderer.renderImageWithDPI(page, 300, ImageType.RGB);
                         FileData fileData = FileData.builder()
-                                .data(toByteArray(bim, "png"))
+                                .image(bim)
                                 .path("designs/" + groupId + "/" + UUID.randomUUID().toString() + ".png")
                                 .mediaType(MediaType.IMAGE_PNG).build();
                         fileDataList.add(fileData);
@@ -185,7 +196,7 @@ public class BuildingService {
     }
 
     @SecurityRequirement(name = "Authorization")
-    @PostMapping(value = "/content/{groupId}/{fileName}")
+    @GetMapping(value = "/content/{groupId}/{fileName}")
     public Mono<ResponseEntity<Flux<ByteBuffer>>> downloadContent(@PathVariable("groupId") String groupId,
                                             @PathVariable("fileName") String fileName) throws IOException {
         GetObjectRequest request = GetObjectRequest.builder()

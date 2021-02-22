@@ -91,8 +91,8 @@ public class SecurityConfig {
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http,
                                                          LogoutWebFilter logoutWebFilter,
                                                          AuthenticationHandler authenticationHandler) {
-        ReactiveAuthenticationManager authenticationManager;
-
+        ServerBearerTokenAuthenticationConverter serverBearerTokenAuthenticationConverter = new ServerBearerTokenAuthenticationConverter();
+        serverBearerTokenAuthenticationConverter.setAllowUriQueryParameter(true);
         return http
                 .authorizeExchange()
                 .pathMatchers("/actuator/**", "/*/login", "/*/register", "/swagger-ui.html", "/webjars/**", "/api-docs/**")
@@ -113,6 +113,7 @@ public class SecurityConfig {
 //                            .accessDeniedHandler(authenticationFailureHandler)
 //                .and()
                 .oauth2ResourceServer()
+                    .bearerTokenConverter(serverBearerTokenAuthenticationConverter)
                 .jwt()
                 .jwtAuthenticationConverter(jwtAccessAuthenticationTokenConverter)
                 .and()
