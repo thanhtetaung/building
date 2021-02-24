@@ -16,5 +16,6 @@ public class FileData {
     private byte[] data;
     private BufferedImage image;
     private String path;
+    private String url;
     private MediaType mediaType;
 }

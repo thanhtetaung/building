@@ -5,8 +5,10 @@ import com.flextech.building.aws.s3.S3ClientConfigurationProperties;
 import com.flextech.building.aws.s3.UploadFailedException;
 import com.flextech.building.common.model.FileData;
 import com.flextech.building.common.webservice.InvalidInputException;
+import com.flextech.building.entity.User;
 import com.flextech.building.webservice.response.DesignUploadResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
@@ -21,6 +23,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -43,6 +46,7 @@ import java.util.stream.Collectors;
 
 @RequestMapping(value = "/v1", produces = MediaType.APPLICATION_JSON_VALUE)
 @RestController
+@Slf4j
 public class BuildingService {
 
     private TikaConfig tika;
@@ -88,7 +92,6 @@ public class BuildingService {
         return Mono.fromFuture(future)
                 .map(result -> {
                     checkResult(result);
-                    fileData.setPath("content" + fileData.getPath().replace("designs", ""));
                     return fileData;
                 });
     }
@@ -116,7 +119,7 @@ public class BuildingService {
 
     }
 
-    private List<FileData> generateRequireFiles(InputStream in) {
+    private List<FileData> generateRequireFiles(InputStream in, User user) {
         try {
             byte[] data = in.readAllBytes();
             String type = detectContentType(data);
@@ -127,24 +130,30 @@ public class BuildingService {
                     PDFRenderer pdfRenderer = new PDFRenderer(document);
                     for (int page = 0; page < document.getNumberOfPages(); ++page) {
                         BufferedImage bim = pdfRenderer.renderImageWithDPI(page, 300, ImageType.RGB);
+                        String fileName = UUID.randomUUID().toString();
                         FileData fileData = FileData.builder()
                                 .image(bim)
-                                .path("designs/" + groupId + "/" + UUID.randomUUID().toString() + ".png")
+                                .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + ".png")
+                                .url("content/" + groupId + "/" + fileName + ".png")
                                 .mediaType(MediaType.IMAGE_PNG).build();
                         fileDataList.add(fileData);
                     }
                 }
+                String fileName = UUID.randomUUID().toString();
                 FileData fileData = FileData.builder()
                         .data(data)
-                        .path("designs/" + groupId + "/" + UUID.randomUUID().toString() + ".pdf")
+                        .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + ".pdf")
+                        .url("content/" + groupId + "/" + fileName + ".pdf")
                         .mediaType(MediaType.APPLICATION_PDF)
                         .build();
                 fileDataList.add(fileData);
             } else if (type.equals("image/jpg") || type.equals("image/jpeg") || type.equals("image/png")) {
                 MediaType mediaType = MediaType.parseMediaType(type);
+                String fileName = UUID.randomUUID().toString();
                 FileData fileData = FileData.builder()
                         .data(data)
-                        .path("designs/" + groupId + "/" + UUID.randomUUID().toString() + "." + mediaType.getSubtype())
+                        .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + "." + mediaType.getSubtype())
+                        .url("content/" + groupId + "/" + fileName + "." + mediaType.getSubtype())
                         .mediaType(mediaType)
                         .build();
                 fileDataList.add(fileData);
@@ -164,10 +173,11 @@ public class BuildingService {
 
     @SecurityRequirement(name = "Authorization")
     @PostMapping(value = "/uploadDesign", consumes = "multipart/form-data")
-    public Mono<DesignUploadResponse> uploadDesign(@RequestPart("file") FilePart file) throws IOException {
+    public Mono<DesignUploadResponse> uploadDesign(@RequestPart("file") FilePart file, Authentication auth) throws IOException {
+        User user = (User)auth.getDetails();
         return DataBufferUtils.join(file.content())
                 .map(dataBuffer -> dataBuffer.asInputStream())
-                .map(this::generateRequireFiles)
+                .map(in -> this.generateRequireFiles(in, user))
                 .flatMapMany(Flux::fromIterable)
                 .flatMap(this::upload)
                 .collectList()
@@ -185,11 +195,11 @@ public class BuildingService {
         }
         List<String> imageList = dataList.stream()
                 .filter(data -> !data.getMediaType().getSubtype().equals("pdf"))
-                .map(data -> data.getPath())
+                .map(data -> data.getUrl())
                 .collect(Collectors.toList());
 
         return DesignUploadResponse.builder()
-                .path(fileData.getPath())
+                .path(fileData.getUrl())
                 .mediaType(fileData.getMediaType().toString())
                 .imageList(imageList)
                 .build();
@@ -198,10 +208,11 @@ public class BuildingService {
     @SecurityRequirement(name = "Authorization")
     @GetMapping(value = "/content/{groupId}/{fileName}")
     public Mono<ResponseEntity<Flux<ByteBuffer>>> downloadContent(@PathVariable("groupId") String groupId,
-                                            @PathVariable("fileName") String fileName) throws IOException {
+                                            @PathVariable("fileName") String fileName, Authentication auth) throws IOException {
+        User user = (User)auth.getDetails();
         GetObjectRequest request = GetObjectRequest.builder()
                 .bucket(s3config.getBucket())
-                .key("designs/" + groupId + "/" + fileName)
+                .key("designs/" + user.getId() + "/" + groupId + "/" + fileName)
                 .build();
 
         return Mono.fromFuture(s3client.getObject(request,new FluxResponseProvider()))
