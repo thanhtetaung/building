@@ -30,6 +30,7 @@ jobs:
           cluster-name: 'cluster-1'
           container-image-name-updates: 'container=building-service,tag=${CIRCLE_SHA1}'
           family: 'building-service'
+          verify-revision-is-deployed: true
 workflows:
   version: 2.1
   main:
