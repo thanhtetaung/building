@@ -1,0 +1,41 @@
+version: 2.1
+orbs:
+  aws-ecr: circleci/aws-ecr@6.15.3
+  aws-ecs: circleci/aws-ecs@2.0.0
+jobs:
+  build:
+    docker:
+      - image: circleci/openjdk:15-jdk-buster
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - dependencies-{{ checksum "build.gradle" }}
+            # fallback to using the latest cache if no exact match is found
+            - dependencies-
+      - setup_remote_docker:
+          version: 19.03.13
+      - run: ./gradlew bootBuildImage --imageName=building-service:$CIRCLE_SHA1
+      - save_cache:
+          paths:
+            - ~/.gradle
+          key: dependencies-{{ checksum "build.gradle" }}
+      - run: docker image tag 316189508164.dkr.ecr.ap-northeast-1.amazonaws.com/building-service:$CIRCLE_SHA1 316189508164.dkr.ecr.ap-northeast-1.amazonaws.com/building-service:latest
+      - aws-ecr/ecr-login
+      - aws-ecr/push-image:
+          repo: building-service
+          tag: 'latest,$CIRCLE_SHA1'
+      - aws-ecs/deploy-service-update:
+          cluster-name: 'cluster1'
+          container-image-name-updates: 'container=building-service,tag=${CIRCLE_SHA1}'
+          family: 'building-service'
+workflows:
+  version: 2.1
+  main:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: 
+              - master
