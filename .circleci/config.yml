@@ -16,7 +16,7 @@ jobs:
             - dependencies-
       - setup_remote_docker:
           version: 19.03.13
-      - run: ./gradlew bootBuildImage --imageName=building-service:$CIRCLE_SHA1
+      - run: ./gradlew bootBuildImage --imageName=316189508164.dkr.ecr.ap-northeast-1.amazonaws.com/building-service:$CIRCLE_SHA1
       - save_cache:
           paths:
             - ~/.gradle
