@@ -80,7 +80,6 @@ public class WebConfig extends WebFluxConfigurationSupport {
         registry.addMapping("/**")
                 .allowedMethods("GET", "POST", "PUT", "DELETE")
                 .allowedOrigins("*")
-                .allowedHeaders("*")
-                .allowCredentials(false);
+                .allowedHeaders("*");
     }
 }
