@@ -26,7 +26,7 @@ jobs:
       - aws-ecr/push-image:
           repo: building-service
           tag: 'latest,$CIRCLE_SHA1'
-      - aws-ecs/deploy-service-update:
+      - aws-ecs/update-service:
           cluster-name: 'cluster1'
           container-image-name-updates: 'container=building-service,tag=${CIRCLE_SHA1}'
           family: 'building-service'
