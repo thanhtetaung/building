@@ -1,11 +1,14 @@
 package com.flextech.building.service;
 
+import com.flextech.building.authentication.AccessAuthenticationToken;
 import com.flextech.building.aws.s3.FluxResponseProvider;
 import com.flextech.building.aws.s3.S3ClientConfigurationProperties;
 import com.flextech.building.aws.s3.UploadFailedException;
 import com.flextech.building.common.model.FileData;
 import com.flextech.building.common.webservice.InvalidInputException;
 import com.flextech.building.entity.User;
+import com.flextech.building.webservice.request.BlueprintAnalysisRequest;
+import com.flextech.building.webservice.response.BlueprintAnalysisResponse;
 import com.flextech.building.webservice.response.DesignUploadResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +20,7 @@ import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
@@ -25,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import software.amazon.awssdk.core.SdkResponse;
@@ -59,6 +64,12 @@ public class BuildingService {
 
     @Autowired
     private S3ClientConfigurationProperties s3config;
+
+    @Autowired
+    private WebClient webClient;
+
+    @Value("${husky.api.baseUrl}")
+    private String huskyApiBaseUrl;
 
     public BuildingService() throws TikaException, IOException {
         tika = new TikaConfig();
@@ -227,5 +238,28 @@ public class BuildingService {
                 .doOnError(throwable -> {
                     throwable.printStackTrace();
                 });
+    }
+
+    @SecurityRequirement(name = "Authorization")
+    @PostMapping(value = "/blueprintAnalysis")
+    public Mono<BlueprintAnalysisResponse> uploadDesign(@RequestBody BlueprintAnalysisRequest request, Authentication auth) throws IOException {
+        AccessAuthenticationToken authToken = (AccessAuthenticationToken)auth;
+        return Mono.just(request)
+                .map(req -> req.json())
+                .doOnNext(json -> json.put("token", authToken.getTokenValue()))
+                .flatMap(this::invokeHuskyBlueprintAnalysisAPI);
+    }
+
+    private Mono<BlueprintAnalysisResponse> invokeHuskyBlueprintAnalysisAPI(Map<String, Object> request) {
+        return webClient.post()
+                .uri(huskyApiBaseUrl + "/building-blueprint-analysis")
+                .accept(MediaType.APPLICATION_JSON)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(BlueprintAnalysisResponse.class);
+//                .doOnNext(s -> log.info(s))
+//                .map(s -> new BlueprintAnalysisResponse());
+
     }
 }
