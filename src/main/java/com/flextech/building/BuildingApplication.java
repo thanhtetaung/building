@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class BuildingApplication {
 
     public static void main(String[] args) {
+        System.setProperty("sun.java2d.cmm", "sun.java2d.cmm.kcms.KcmsServiceProvider");
         SpringApplication.run(BuildingApplication.class, args);
     }
 
