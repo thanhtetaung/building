@@ -1,5 +1,9 @@
 package com.flextech.building.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.util.JSONPObject;
 import com.flextech.building.authentication.AccessAuthenticationToken;
 import com.flextech.building.aws.s3.FluxResponseProvider;
 import com.flextech.building.aws.s3.S3ClientConfigurationProperties;
@@ -130,11 +134,11 @@ public class BuildingService {
 
     }
 
-    private List<FileData> generateRequireFiles(InputStream in, User user) {
+    private Flux<FileData> generateRequireFiles(InputStream in, User user) {
         try {
             byte[] data = in.readAllBytes();
             String type = detectContentType(data);
-            List<FileData> fileDataList = new ArrayList<>();
+            List<Mono<FileData>> fileDataList = new ArrayList<>();
             String groupId = UUID.randomUUID().toString();
             if (type.equals("application/pdf")) {
                 try (final PDDocument document = PDDocument.load(data)) {
@@ -147,7 +151,7 @@ public class BuildingService {
                                 .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + ".png")
                                 .url("content/" + groupId + "/" + fileName + ".png")
                                 .mediaType(MediaType.IMAGE_PNG).build();
-                        fileDataList.add(fileData);
+                        fileDataList.add(upload(fileData));
                     }
                 }
                 String fileName = UUID.randomUUID().toString();
@@ -157,7 +161,7 @@ public class BuildingService {
                         .url("content/" + groupId + "/" + fileName + ".pdf")
                         .mediaType(MediaType.APPLICATION_PDF)
                         .build();
-                fileDataList.add(fileData);
+                fileDataList.add(upload(fileData));
             } else if (type.equals("image/jpg") || type.equals("image/jpeg") || type.equals("image/png")) {
                 MediaType mediaType = MediaType.parseMediaType(type);
                 String fileName = UUID.randomUUID().toString();
@@ -167,13 +171,14 @@ public class BuildingService {
                         .url("content/" + groupId + "/" + fileName + "." + mediaType.getSubtype())
                         .mediaType(mediaType)
                         .build();
-                fileDataList.add(fileData);
+                fileDataList.add(upload(fileData));
             } else {
                 throw new InvalidInputException(
                     messageSource.getMessage("error.validation.file.content.invalid", null, Locale.getDefault())
                 );
             }
-            return fileDataList;
+
+            return Flux.mergeSequential(fileDataList);
         } catch (IOException e) {
             e.printStackTrace();
             throw new InvalidInputException(e.getMessage());
@@ -188,9 +193,7 @@ public class BuildingService {
         User user = (User)auth.getDetails();
         return DataBufferUtils.join(file.content())
                 .map(dataBuffer -> dataBuffer.asInputStream())
-                .map(in -> this.generateRequireFiles(in, user))
-                .flatMapMany(Flux::fromIterable)
-                .flatMap(this::upload)
+                .flatMapMany(in -> this.generateRequireFiles(in, user))
                 .collectList()
                 .map(this::createUploadResponse);
     }
@@ -251,15 +254,35 @@ public class BuildingService {
     }
 
     private Mono<BlueprintAnalysisResponse> invokeHuskyBlueprintAnalysisAPI(Map<String, Object> request) {
+        String body = null;
+        try {
+            body = new ObjectMapper().writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(request);
+        } catch (JsonProcessingException e) {
+            log.error(e.getMessage(), e);
+            return Mono.error(e);
+        }
         return webClient.post()
                 .uri(huskyApiBaseUrl + "/building-blueprint-analysis")
-                .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(BlueprintAnalysisResponse.class);
+//                .bodyToMono(String.class)
+//                .map(this::createBlueprintAnalysisResponse);
 //                .doOnNext(s -> log.info(s))
 //                .map(s -> new BlueprintAnalysisResponse());
 
+    }
+
+    private BlueprintAnalysisResponse createBlueprintAnalysisResponse(String body) {
+        try {
+            return new ObjectMapper()
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                    .readValue(body, BlueprintAnalysisResponse.class);
+        } catch (JsonProcessingException e) {
+            log.error(e.getMessage(), e);
+            throw new RuntimeException(e.getMessage());
+        }
     }
 }

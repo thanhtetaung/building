@@ -11,6 +11,9 @@ import java.util.List;
 @NoArgsConstructor
 
 public class BlueprintAnalysisResponse {
+
+    private String message;
+
     private List<Image> imgs = new ArrayList<>();
 
     private List<Image> externalShapeDrawnImgs = new ArrayList<>();
@@ -65,5 +68,13 @@ public class BlueprintAnalysisResponse {
 
     public void setBuilding(Building building) {
         this.building = building;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
     }
 }
