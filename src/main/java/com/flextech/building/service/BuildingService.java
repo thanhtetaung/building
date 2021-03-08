@@ -144,13 +144,16 @@ public class BuildingService {
                 try (final PDDocument document = PDDocument.load(data)) {
                     PDFRenderer pdfRenderer = new PDFRenderer(document);
                     for (int page = 0; page < document.getNumberOfPages(); ++page) {
-                        BufferedImage bim = pdfRenderer.renderImageWithDPI(page, 300, ImageType.RGB);
+                        long start = System.currentTimeMillis();
+                        BufferedImage bim = pdfRenderer.renderImage(page);
                         String fileName = UUID.randomUUID().toString();
                         FileData fileData = FileData.builder()
                                 .image(bim)
                                 .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + ".png")
                                 .url("content/" + groupId + "/" + fileName + ".png")
                                 .mediaType(MediaType.IMAGE_PNG).build();
+                        long end = System.currentTimeMillis();
+                        log.info("Page " + page + " : " + (end - start) + " ms");
                         fileDataList.add(upload(fileData));
                     }
                 }
