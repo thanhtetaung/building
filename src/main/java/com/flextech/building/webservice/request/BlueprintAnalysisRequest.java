@@ -64,6 +64,8 @@ public class BlueprintAnalysisRequest {
     @NotEmpty(message = "{error.validation.fileMetaInfos.empty}")
     private List<List<FileMeta>> fileMetaInfos = new ArrayList<>();
 
+    private List<Double> floorAreas = new ArrayList<>();
+
     public Map<String, Object> json() {
         Map<String, Object> map = new HashMap<>();
         map.put("site_area", siteArea);
@@ -73,6 +75,7 @@ public class BlueprintAnalysisRequest {
         map.put("building_area", buildingArea);
         map.put("number_of_above_ground_floors", numberOfAboveGroundFloors);
         map.put("number_of_basement_floors", numberOfBasementFloors);
+        map.put("floor_areas", floorAreas);
         if (frontalRoadWidth != null) {
             map.put("frontal_road_width", frontalRoadWidth);
         }
@@ -85,7 +88,7 @@ public class BlueprintAnalysisRequest {
         if (distanceToSpecialRoad != null) {
             map.put("distance_to_special_road", distanceToSpecialRoad);
         }
-        map.put("use_districts", useDistricts);
+        map.put("use_districts", Collections.singleton(useDistricts));
         map.put("building_coverage_ratio_deregulation", buildingCoverageRatioDeregulation);
         map.put("files", files);
         List<List<Map<String, Object>>> metas = fileMetaInfos.stream().map(fileMetas -> fileMetas.stream().map(fileMeta -> {

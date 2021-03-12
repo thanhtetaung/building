@@ -31,7 +31,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -247,12 +249,42 @@ public class BuildingService {
     }
 
     @SecurityRequirement(name = "Authorization")
+    @GetMapping(value = "/result/content/**")
+    public Mono<ResponseEntity<Flux<ByteBuffer>>> downloadResultContent(ServerHttpRequest request,
+                                                                   Authentication auth) throws IOException {
+        User user = (User)auth.getDetails();
+        String remainingPath = new AntPathMatcher().extractPathWithinPattern("/result/content/**", request.getURI().getPath());
+        GetObjectRequest s3Request = GetObjectRequest.builder()
+                .bucket(s3config.getResultBucket())
+                .key("/" + remainingPath)
+                .build();
+
+        return Mono.fromFuture(s3client.getObject(s3Request,new FluxResponseProvider()))
+                .map(response -> {
+                    checkResult(response.getSdkResponse());
+                    return ResponseEntity.ok()
+                            .header(HttpHeaders.CONTENT_TYPE, response.getSdkResponse().contentType())
+                            .header(HttpHeaders.CONTENT_LENGTH, Long.toString(response.getSdkResponse().contentLength()))
+                            .header(HttpHeaders.CONTENT_DISPOSITION, response.getSdkResponse().contentDisposition())
+                            .body(response.getBufferFlux());
+                })
+                .doOnError(throwable -> {
+                    throwable.printStackTrace();
+                });
+    }
+
+    @SecurityRequirement(name = "Authorization")
     @PostMapping(value = "/blueprintAnalysis")
     public Mono<BlueprintAnalysisResponse> uploadDesign(@RequestBody BlueprintAnalysisRequest request, Authentication auth) throws IOException {
         AccessAuthenticationToken authToken = (AccessAuthenticationToken)auth;
+        User user = (User)authToken.getDetails();
         return Mono.just(request)
                 .map(req -> req.json())
-                .doOnNext(json -> json.put("token", authToken.getTokenValue()))
+                .doOnNext(json -> {
+                    json.put("token", authToken.getTokenValue());
+                    json.put("user_id", user.getId());
+                    log.info(json.toString());
+                })
                 .flatMap(this::invokeHuskyBlueprintAnalysisAPI);
     }
 

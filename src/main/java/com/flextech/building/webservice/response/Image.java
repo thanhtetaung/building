@@ -2,6 +2,9 @@ package com.flextech.building.webservice.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Image {
     private String img;
     private Integer floor;
@@ -9,7 +12,7 @@ public class Image {
     private Double detectedArea;
     private String fixtureSymbolImg;
     private String blueprintType;
-    private Symbol fixtureSymbols;
+    private List<Symbol> fixtureSymbols = new ArrayList<>();
 
     public String getImg() {
         return img;
@@ -67,12 +70,12 @@ public class Image {
     }
 
     @JsonProperty("fixtureSymbols")
-    public Symbol getFixtureSymbols() {
+    public List<Symbol> getFixtureSymbols() {
         return fixtureSymbols;
     }
 
     @JsonProperty("fixture_symbols")
-    public void setFixtureSymbols(Symbol fixtureSymbols) {
+    public void setFixtureSymbols(List<Symbol> fixtureSymbols) {
         this.fixtureSymbols = fixtureSymbols;
     }
 }
