@@ -49,6 +49,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -149,46 +150,48 @@ public class BuildingService {
                 final PDDocument document = PDDocument.load(data);
                 PDFRenderer pdfRenderer = new PDFRenderer(document);
 
-                String pdfFileName = UUID.randomUUID().toString();
-                FileData pdfFileData = FileData.builder()
-                        .index(document.getNumberOfPages())
-                        .data(data)
-                        .path("designs/" + user.getId() + "/" + groupId + "/" + pdfFileName + ".pdf")
-                        .url("content/" + groupId + "/" + pdfFileName + ".pdf")
-                        .mediaType(MediaType.APPLICATION_PDF)
-                        .build();
-                Mono<FileData> pdfMono = upload(pdfFileData);
-
-                return Flux.range(0, document.getNumberOfPages())
+                return Flux.range(0, document.getNumberOfPages() + 1)
                     .parallel()
                     .runOn(Schedulers.parallel())
-                    .flatMap(page -> {
-                        long start = System.currentTimeMillis();
-                        BufferedImage bim = null;
-                        try {
-//                            bim = pdfRenderer.renderImageWithDPI(page, 400);
-                            bim = pdfRenderer.renderImage(page);
-                        } catch (IOException e) {
-                            log.error(e.getMessage(), e);
-                            return Mono.error(e);
+                    .map(page -> {
+                        if (page < document.getNumberOfPages()) {
+                            long start = System.currentTimeMillis();
+                            BufferedImage bim = null;
+                            try {
+                                 bim = pdfRenderer.renderImageWithDPI(page, 400);
+//                                bim = pdfRenderer.renderImage(page);
+                            } catch (IOException e) {
+                                log.error(e.getMessage(), e);
+                                throw new UncheckedIOException(e);
+                            }
+                            String fileName = UUID.randomUUID().toString();
+                            FileData fileData = FileData.builder()
+                                    .index(page)
+                                    .image(bim)
+                                    .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + ".png")
+                                    .url("content/" + groupId + "/" + fileName + ".png")
+                                    .mediaType(MediaType.IMAGE_PNG).build();
+                            long end = System.currentTimeMillis();
+                            log.info("Page " + page + " : " + (end - start) + " ms");
+                            return fileData;
+                        } else {
+                            String pdfFileName = UUID.randomUUID().toString();
+                            FileData pdfFileData = FileData.builder()
+                                    .index(document.getNumberOfPages())
+                                    .data(data)
+                                    .path("designs/" + user.getId() + "/" + groupId + "/" + pdfFileName + ".pdf")
+                                    .url("content/" + groupId + "/" + pdfFileName + ".pdf")
+                                    .mediaType(MediaType.APPLICATION_PDF)
+                                    .build();
+                            return pdfFileData;
                         }
-                        String fileName = UUID.randomUUID().toString();
-                        FileData fileData = FileData.builder()
-                                .index(page)
-                                .image(bim)
-                                .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + ".png")
-                                .url("content/" + groupId + "/" + fileName + ".png")
-                                .mediaType(MediaType.IMAGE_PNG).build();
-                        long end = System.currentTimeMillis();
-                        log.info("Page " + page + " : " + (end - start) + " ms");
-                        return upload(fileData);
-                    }).ordered(FileData::compareTo)
+                    }).sequential()
                         .collectList()
-                        .zipWith(pdfMono)
-                        .flatMapMany(objects -> {
-                              objects.getT1().add(objects.getT2());
-                              return Flux.fromIterable(objects.getT1());
-                        }).doFinally( tmp -> {
+                        .flatMapMany(list -> Flux.fromIterable(list))
+                        .parallel()
+                        .flatMap(d -> upload(d))
+                        .sorted(FileData::compareTo)
+                        .doFinally( tmp -> {
                             try {
                                 document.close();
                             } catch (IOException e) {
