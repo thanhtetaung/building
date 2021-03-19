@@ -158,8 +158,8 @@ public class BuildingService {
                             long start = System.currentTimeMillis();
                             BufferedImage bim = null;
                             try {
-                                 bim = pdfRenderer.renderImageWithDPI(page, 400);
-//                                bim = pdfRenderer.renderImage(page);
+//                                 bim = pdfRenderer.renderImageWithDPI(page, 400);
+                                bim = pdfRenderer.renderImage(page);
                             } catch (IOException e) {
                                 log.error(e.getMessage(), e);
                                 throw new UncheckedIOException(e);
