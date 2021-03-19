@@ -3,7 +3,6 @@ package com.flextech.building.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.util.JSONPObject;
 import com.flextech.building.authentication.AccessAuthenticationToken;
 import com.flextech.building.aws.s3.FluxResponseProvider;
 import com.flextech.building.aws.s3.S3ClientConfigurationProperties;
@@ -17,7 +16,6 @@ import com.flextech.building.webservice.response.DesignUploadResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.tika.config.TikaConfig;
 import org.apache.tika.exception.TikaException;
@@ -38,6 +36,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import software.amazon.awssdk.core.SdkResponse;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -106,9 +105,14 @@ public class BuildingService {
                                 .metadata(metadata)
                                 .build(),
                         AsyncRequestBody.fromBytes(data));
+
+        long start = System.currentTimeMillis();
         return Mono.fromFuture(future)
                 .map(result -> {
                     checkResult(result);
+                    long end = System.currentTimeMillis();
+                    log.info("Upload Page " + fileData.getIndex() + " : " + (end - start) + " ms");
+                    fileData.setData(null);
                     return fileData;
                 });
     }
@@ -140,33 +144,59 @@ public class BuildingService {
         try {
             byte[] data = in.readAllBytes();
             String type = detectContentType(data);
-            List<Mono<FileData>> fileDataList = new ArrayList<>();
             String groupId = UUID.randomUUID().toString();
             if (type.equals("application/pdf")) {
-                try (final PDDocument document = PDDocument.load(data)) {
-                    PDFRenderer pdfRenderer = new PDFRenderer(document);
-                    for (int page = 0; page < document.getNumberOfPages(); ++page) {
+                final PDDocument document = PDDocument.load(data);
+                PDFRenderer pdfRenderer = new PDFRenderer(document);
+
+                String pdfFileName = UUID.randomUUID().toString();
+                FileData pdfFileData = FileData.builder()
+                        .index(document.getNumberOfPages())
+                        .data(data)
+                        .path("designs/" + user.getId() + "/" + groupId + "/" + pdfFileName + ".pdf")
+                        .url("content/" + groupId + "/" + pdfFileName + ".pdf")
+                        .mediaType(MediaType.APPLICATION_PDF)
+                        .build();
+                Mono<FileData> pdfMono = upload(pdfFileData);
+
+                return Flux.range(0, document.getNumberOfPages())
+                    .parallel()
+                    .runOn(Schedulers.parallel())
+                    .flatMap(page -> {
                         long start = System.currentTimeMillis();
-                        BufferedImage bim = pdfRenderer.renderImage(page);
+                        BufferedImage bim = null;
+                        try {
+                            bim = pdfRenderer.renderImageWithDPI(page, 400);
+//                            bim = pdfRenderer.renderImage(page);
+                        } catch (IOException e) {
+                            log.error(e.getMessage(), e);
+                            return Mono.error(e);
+                        }
                         String fileName = UUID.randomUUID().toString();
                         FileData fileData = FileData.builder()
+                                .index(page)
                                 .image(bim)
                                 .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + ".png")
                                 .url("content/" + groupId + "/" + fileName + ".png")
                                 .mediaType(MediaType.IMAGE_PNG).build();
                         long end = System.currentTimeMillis();
                         log.info("Page " + page + " : " + (end - start) + " ms");
-                        fileDataList.add(upload(fileData));
-                    }
-                }
-                String fileName = UUID.randomUUID().toString();
-                FileData fileData = FileData.builder()
-                        .data(data)
-                        .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + ".pdf")
-                        .url("content/" + groupId + "/" + fileName + ".pdf")
-                        .mediaType(MediaType.APPLICATION_PDF)
-                        .build();
-                fileDataList.add(upload(fileData));
+                        return upload(fileData);
+                    }).ordered(FileData::compareTo)
+                        .collectList()
+                        .zipWith(pdfMono)
+                        .flatMapMany(objects -> {
+                              objects.getT1().add(objects.getT2());
+                              return Flux.fromIterable(objects.getT1());
+                        }).doFinally( tmp -> {
+                            try {
+                                document.close();
+                            } catch (IOException e) {
+                                log.error(e.getMessage(), e);
+                            }
+                        });
+
+
             } else if (type.equals("image/jpg") || type.equals("image/jpeg") || type.equals("image/png")) {
                 MediaType mediaType = MediaType.parseMediaType(type);
                 String fileName = UUID.randomUUID().toString();
@@ -176,14 +206,12 @@ public class BuildingService {
                         .url("content/" + groupId + "/" + fileName + "." + mediaType.getSubtype())
                         .mediaType(mediaType)
                         .build();
-                fileDataList.add(upload(fileData));
+                return Flux.mergeSequential(upload(fileData));
             } else {
                 throw new InvalidInputException(
                     messageSource.getMessage("error.validation.file.content.invalid", null, Locale.getDefault())
                 );
             }
-
-            return Flux.mergeSequential(fileDataList);
         } catch (IOException e) {
             e.printStackTrace();
             throw new InvalidInputException(e.getMessage());
@@ -320,4 +348,5 @@ public class BuildingService {
             throw new RuntimeException(e.getMessage());
         }
     }
+
 }

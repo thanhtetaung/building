@@ -1,5 +1,6 @@
 package com.flextech.building.common.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,10 +13,23 @@ import java.awt.image.BufferedImage;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class FileData {
+public class FileData implements Comparable<FileData> {
+    @JsonIgnore
+    private int index;
     private byte[] data;
     private BufferedImage image;
     private String path;
     private String url;
     private MediaType mediaType;
+
+    @Override
+    public int compareTo(FileData o) {
+        if (getIndex() > o.getIndex()) {
+            return 1;
+        } else if (getIndex() < o.getIndex()) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
 }

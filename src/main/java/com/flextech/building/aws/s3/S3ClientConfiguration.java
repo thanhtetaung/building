@@ -23,6 +23,8 @@ public class S3ClientConfiguration {
     public S3AsyncClient s3client(S3ClientConfigurationProperties s3props, AwsCredentialsProvider credentialsProvider) {
 
         SdkAsyncHttpClient httpClient = NettyNioAsyncHttpClient.builder()
+                .connectionTimeout(Duration.ofMinutes(3))
+                .connectionAcquisitionTimeout(Duration.ofMinutes(3))
                 .writeTimeout(Duration.ZERO)
                 .maxConcurrency(20)
                 .build();
