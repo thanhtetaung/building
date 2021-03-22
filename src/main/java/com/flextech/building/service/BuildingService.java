@@ -149,16 +149,17 @@ public class BuildingService {
             String groupId = UUID.randomUUID().toString();
             String pdfFileName = UUID.randomUUID().toString();
             if (type.equals("application/pdf")) {
-                final PDDocument document = PDDocument.load(data);
-                FileData pdfFileData = FileData.builder()
-                        .index(document.getNumberOfPages())
-                        .data(data)
-                        .groupId(groupId)
-                        .path("designs/" + user.getId() + "/" + groupId + "/" + pdfFileName + ".pdf")
-                        .url("content/" + groupId + "/" + pdfFileName + ".pdf")
-                        .mediaType(MediaType.APPLICATION_PDF)
-                        .build();
-                return upload(pdfFileData);
+                try(PDDocument document = PDDocument.load(data)) {
+                    FileData pdfFileData = FileData.builder()
+                            .index(document.getNumberOfPages())
+                            .data(data)
+                            .groupId(groupId)
+                            .path("designs/" + user.getId() + "/" + groupId + "/" + pdfFileName + ".pdf")
+                            .url("content/" + groupId + "/" + pdfFileName + ".pdf")
+                            .mediaType(MediaType.APPLICATION_PDF)
+                            .build();
+                    return upload(pdfFileData);
+                }
             }  else if (type.equals("image/jpg") || type.equals("image/jpeg") || type.equals("image/png")) {
                 MediaType mediaType = MediaType.parseMediaType(type);
                 String fileName = UUID.randomUUID().toString();
