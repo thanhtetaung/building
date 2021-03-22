@@ -16,6 +16,8 @@ import java.awt.image.BufferedImage;
 public class FileData implements Comparable<FileData> {
     @JsonIgnore
     private int index;
+    @JsonIgnore
+    private String groupId;
     private byte[] data;
     private BufferedImage image;
     private String path;

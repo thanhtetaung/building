@@ -15,15 +15,19 @@ import com.flextech.building.webservice.response.BlueprintAnalysisResponse;
 import com.flextech.building.webservice.response.DesignUploadResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.avro.util.ByteBufferInputStream;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.tika.config.TikaConfig;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
+import org.bson.ByteBuf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -40,22 +44,19 @@ import reactor.core.scheduler.Schedulers;
 import software.amazon.awssdk.core.SdkResponse;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.*;
 
 import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-@RequestMapping(value = "/v1", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(produces = MediaType.APPLICATION_JSON_VALUE)
 @RestController
 @Slf4j
 public class BuildingService {
@@ -141,6 +142,47 @@ public class BuildingService {
 
     }
 
+    private Mono<FileData> processUploadedFile(InputStream in, User user) {
+        try {
+            byte[] data = in.readAllBytes();
+            String type = detectContentType(data);
+            String groupId = UUID.randomUUID().toString();
+            String pdfFileName = UUID.randomUUID().toString();
+            if (type.equals("application/pdf")) {
+                final PDDocument document = PDDocument.load(data);
+                FileData pdfFileData = FileData.builder()
+                        .index(document.getNumberOfPages())
+                        .data(data)
+                        .groupId(groupId)
+                        .path("designs/" + user.getId() + "/" + groupId + "/" + pdfFileName + ".pdf")
+                        .url("content/" + groupId + "/" + pdfFileName + ".pdf")
+                        .mediaType(MediaType.APPLICATION_PDF)
+                        .build();
+                return upload(pdfFileData);
+            }  else if (type.equals("image/jpg") || type.equals("image/jpeg") || type.equals("image/png")) {
+                MediaType mediaType = MediaType.parseMediaType(type);
+                String fileName = UUID.randomUUID().toString();
+                FileData fileData = FileData.builder()
+                        .data(data)
+                        .groupId(groupId)
+                        .path("designs/" + user.getId() + "/" + groupId + "/" + fileName + "." + mediaType.getSubtype())
+                        .url("content/" + groupId + "/" + fileName + "." + mediaType.getSubtype())
+                        .mediaType(mediaType)
+                        .build();
+                return upload(fileData);
+            } else {
+                throw new InvalidInputException(
+                    messageSource.getMessage("error.validation.file.content.invalid", null, Locale.getDefault())
+                );
+            }
+
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new InvalidInputException(e.getMessage());
+        }
+    }
+
     private Flux<FileData> generateRequireFiles(InputStream in, User user) {
         try {
             byte[] data = in.readAllBytes();
@@ -153,7 +195,8 @@ public class BuildingService {
                 return Flux.range(0, document.getNumberOfPages() + 1)
                     .parallel()
                     .runOn(Schedulers.parallel())
-                    .map(page -> {
+                    .flatMap(page -> {
+                        //image case
                         if (page < document.getNumberOfPages()) {
                             long start = System.currentTimeMillis();
                             BufferedImage bim = null;
@@ -173,7 +216,8 @@ public class BuildingService {
                                     .mediaType(MediaType.IMAGE_PNG).build();
                             long end = System.currentTimeMillis();
                             log.info("Page " + page + " : " + (end - start) + " ms");
-                            return fileData;
+                            return upload(fileData);
+                        // pdf case
                         } else {
                             String pdfFileName = UUID.randomUUID().toString();
                             FileData pdfFileData = FileData.builder()
@@ -183,21 +227,17 @@ public class BuildingService {
                                     .url("content/" + groupId + "/" + pdfFileName + ".pdf")
                                     .mediaType(MediaType.APPLICATION_PDF)
                                     .build();
-                            return pdfFileData;
+                            return upload(pdfFileData);
                         }
-                    }).sequential()
-                        .collectList()
-                        .flatMapMany(list -> Flux.fromIterable(list))
-                        .parallel()
-                        .flatMap(d -> upload(d))
-                        .sorted(FileData::compareTo)
-                        .doFinally( tmp -> {
-                            try {
-                                document.close();
-                            } catch (IOException e) {
-                                log.error(e.getMessage(), e);
-                            }
-                        });
+                    })
+                    .ordered(FileData::compareTo)
+                    .doFinally( tmp -> {
+                        try {
+                            document.close();
+                        } catch (IOException e) {
+                            log.error(e.getMessage(), e);
+                        }
+                    });
 
 
             } else if (type.equals("image/jpg") || type.equals("image/jpeg") || type.equals("image/png")) {
@@ -224,7 +264,7 @@ public class BuildingService {
 
 
     @SecurityRequirement(name = "Authorization")
-    @PostMapping(value = "/uploadDesign", consumes = "multipart/form-data")
+    @PostMapping(value = "/v1/uploadDesign", consumes = "multipart/form-data")
     public Mono<DesignUploadResponse> uploadDesign(@RequestPart("file") FilePart file, Authentication auth) throws IOException {
         User user = (User)auth.getDetails();
         return DataBufferUtils.join(file.content())
@@ -232,6 +272,34 @@ public class BuildingService {
                 .flatMapMany(in -> this.generateRequireFiles(in, user))
                 .collectList()
                 .map(this::createUploadResponse);
+    }
+
+    @SecurityRequirement(name = "Authorization")
+    @PostMapping(value = "/v2/uploadDesign", consumes = "multipart/form-data")
+    public Mono<DesignUploadResponse> uploadDesignV2(@RequestPart("file") FilePart file, Authentication auth) throws IOException {
+        User user = (User)auth.getDetails();
+        return DataBufferUtils.join(file.content())
+                .map(dataBuffer -> dataBuffer.asInputStream())
+                .flatMap(in -> this.processUploadedFile(in, user))
+                .map(this::createUploadResponseV2);
+    }
+
+    private DesignUploadResponse createUploadResponseV2(FileData fileData) {
+        List<String> imageList = new ArrayList<>();
+
+        if (fileData.getMediaType() == MediaType.APPLICATION_PDF) {
+            for(int i = 0; i < fileData.getIndex(); i++) {
+                imageList.add("content/" + fileData.getGroupId() + "/" + (i + 1) + ".png");
+            }
+        } else {
+            imageList.add(fileData.getUrl());
+        }
+
+        return DesignUploadResponse.builder()
+                .path(fileData.getUrl())
+                .mediaType(fileData.getMediaType().toString())
+                .imageList(imageList)
+                .build();
     }
 
     private DesignUploadResponse createUploadResponse(List<FileData> dataList) {
@@ -256,7 +324,7 @@ public class BuildingService {
     }
 
     @SecurityRequirement(name = "Authorization")
-    @GetMapping(value = "/content/{groupId}/{fileName}")
+    @GetMapping(value = "/v1/content/{groupId}/{fileName}")
     public Mono<ResponseEntity<Flux<ByteBuffer>>> downloadContent(@PathVariable("groupId") String groupId,
                                             @PathVariable("fileName") String fileName, Authentication auth) throws IOException {
         User user = (User)auth.getDetails();
@@ -279,8 +347,188 @@ public class BuildingService {
                 });
     }
 
+    private Mono<byte[]> downloadFromS3(String key, int dpi) {
+        GetObjectRequest request = GetObjectRequest.builder()
+                .bucket(s3config.getBucket())
+                .key(key)
+                .build();
+        long start = System.currentTimeMillis();
+        return Mono.fromFuture(s3client.getObject(request,new FluxResponseProvider()))
+                .flatMap(response -> {
+                    checkResult(response.getSdkResponse());
+                    long end = System.currentTimeMillis();
+                    log.info("S3 download: " + (end - start) + "ms");
+                    return response.getBufferFlux().collectList();
+                })
+                .map(bufferList -> {
+                    try {
+                        return new ByteBufferInputStream(bufferList).readAllBytes();
+                    } catch (IOException e) {
+                        log.error(e.getMessage(), e);
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .map(bytes -> convertToDPI(bytes, dpi))
+                .doOnError(throwable -> {
+                    throwable.printStackTrace();
+                });
+    }
+
+    private byte[] convertToDPI(byte[] data, int dpi) {
+        if (dpi == 400) {
+            return data;
+        }
+
+        try {
+            long start = System.currentTimeMillis();
+            double scale = dpi/400d;
+            BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(data));
+            int width = (int) (originalImage.getWidth() * scale) ;
+            int height = (int) (originalImage.getHeight() * scale);
+
+            Image image = originalImage.getScaledInstance(width, height, java.awt.Image.SCALE_SMOOTH);
+
+            BufferedImage resizedImg = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = resizedImg.createGraphics();
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.drawImage(image, 0, 0, null);
+            g2.dispose();
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(resizedImg, "png",out);
+            long end = System.currentTimeMillis();
+            log.info("DPI conversion: " + (end - start) + "ms");
+            return out.toByteArray();
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new UncheckedIOException(e);
+        }
+
+    }
+
+    private long byteBufferListToLength(List<ByteBuffer> bufferList) {
+        return bufferList.stream().mapToInt(b -> b.array().length).sum();
+    }
+
+    private byte[] generateImageForPage(byte[] pdfData, int pageIndex) {
+        try(PDDocument document = PDDocument.load(pdfData)) {
+            long start = System.currentTimeMillis();
+            PDFRenderer pdfRenderer = new PDFRenderer(document);
+            BufferedImage image = pdfRenderer.renderImageWithDPI(pageIndex, 400);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", out);
+            long end = System.currentTimeMillis();
+            log.info("Generate image: " + (end - start) + "ms");
+            document.close();
+            return out.toByteArray();
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private Mono<byte[]> uploadPageImage(String key, byte[] data) {
+        Map<String, String> metadata = new HashMap<String, String>();
+
+        CompletableFuture<PutObjectResponse> future = s3client
+                .putObject(PutObjectRequest.builder()
+                                .bucket(s3config.getBucket())
+                                .contentLength((long)data.length)
+                                .key(key)
+                                .contentType(MediaType.IMAGE_PNG_VALUE)
+                                .metadata(metadata)
+                                .build(),
+                        AsyncRequestBody.fromBytes(data));
+
+        long start = System.currentTimeMillis();
+        return Mono.fromFuture(future)
+                .map(result -> {
+                    checkResult(result);
+                    long end = System.currentTimeMillis();
+                    log.info("Upload Page Image : " + (end - start) + " ms");
+                    return data;
+                });
+    }
+
+    private Mono<byte[]> processPageImageFromPdf(String pdfKey, String groupId, String fileName, int dpi, User user) {
+
+        int index = Integer.parseInt(fileName.substring(fileName.lastIndexOf("/") + 1, fileName.lastIndexOf("."))) - 1;
+        String imageKey = "designs/" + user.getId() + "/" + groupId + "/" + fileName;
+
+        GetObjectRequest request = GetObjectRequest.builder()
+                .bucket(s3config.getBucket())
+                .key(pdfKey)
+                .build();
+
+        return Mono.fromFuture(s3client.getObject(request,new FluxResponseProvider()))
+                .flatMap(response -> {
+                    checkResult(response.getSdkResponse());
+                    return response.getBufferFlux().collectList();
+                })
+                .map(bufferList -> {
+                    try {
+                        return new ByteBufferInputStream(bufferList).readAllBytes();
+                    } catch (IOException e) {
+                        log.error(e.getMessage(), e);
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .map(bytes -> generateImageForPage(bytes, index))
+                .flatMap(bytes -> uploadPageImage(imageKey, bytes))
+                .map(bytes -> convertToDPI(bytes, dpi));
+    }
+
+
+
     @SecurityRequirement(name = "Authorization")
-    @GetMapping(value = "/result/content/**")
+    @GetMapping(value = "/v2/content/{groupId}/{fileName}")
+    public Mono<ResponseEntity<Resource>> downloadContentv2(@PathVariable("groupId") String groupId,
+                                                            @PathVariable("fileName") String fileName,
+                                                            @RequestParam(name = "dpi", defaultValue = "400") int dpi,
+                                                            Authentication auth) throws IOException {
+        User user = (User)auth.getDetails();
+
+        String key = "designs/" + user.getId() + "/" + groupId + "/" + fileName;
+
+        ListObjectsV2Request listReq = ListObjectsV2Request.builder()
+                .bucket(s3config.getBucket())
+                .prefix("designs/" + user.getId() + "/" + groupId + "/")
+                .build();
+
+        return Mono.fromFuture(s3client.listObjectsV2(listReq))
+                .flatMap(response -> {
+                   checkResult(response);
+                   String pdfKey = null;
+                   for(S3Object obj : response.contents()) {
+                       if(obj.key().equals(key)) {
+                           // image already generated case
+                           return this.downloadFromS3(key, dpi);
+                       }
+                       if (obj.key().endsWith(".pdf")) {
+                           pdfKey = obj.key();
+                       }
+                   }
+                   if (pdfKey == null) {
+                       throw new RuntimeException("pdf not found to generate image.");
+                   }
+
+                    // image not has been generated case
+                   return processPageImageFromPdf(pdfKey, groupId, fileName, dpi, user);
+                })
+                .map(bytes -> {
+                    return ResponseEntity.ok()
+                            .header(HttpHeaders.CONTENT_TYPE, MediaType.IMAGE_PNG_VALUE)
+                            .header(HttpHeaders.CONTENT_LENGTH, Long.toString(bytes.length))
+                            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                            .body((Resource)new ByteArrayResource(bytes));
+                })
+                .doOnError(throwable -> {
+                    throwable.printStackTrace();
+                });
+    }
+
+    @SecurityRequirement(name = "Authorization")
+    @GetMapping(value = "/v1/result/content/**")
     public Mono<ResponseEntity<Flux<ByteBuffer>>> downloadResultContent(ServerHttpRequest request,
                                                                    Authentication auth) throws IOException {
         User user = (User)auth.getDetails();
@@ -305,7 +553,7 @@ public class BuildingService {
     }
 
     @SecurityRequirement(name = "Authorization")
-    @PostMapping(value = "/blueprintAnalysis")
+    @PostMapping(value = "/v1/blueprintAnalysis")
     public Mono<BlueprintAnalysisResponse> uploadDesign(@RequestBody BlueprintAnalysisRequest request, Authentication auth) throws IOException {
         AccessAuthenticationToken authToken = (AccessAuthenticationToken)auth;
         User user = (User)authToken.getDetails();
