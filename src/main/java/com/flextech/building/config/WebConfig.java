@@ -13,6 +13,8 @@ import org.springframework.data.web.ReactivePageableHandlerMethodArgumentResolve
 import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.http.codec.json.Jackson2JsonDecoder;
 import org.springframework.http.codec.json.Jackson2JsonEncoder;
+import org.springframework.http.codec.multipart.DefaultPartHttpMessageReader;
+import org.springframework.http.codec.multipart.MultipartHttpMessageReader;
 import org.springframework.validation.Validator;
 import org.springframework.validation.beanvalidation.OptionalValidatorFactoryBean;
 import org.springframework.web.reactive.config.CorsRegistry;
@@ -65,6 +67,15 @@ public class WebConfig extends WebFluxConfigurationSupport {
     protected void configureHttpMessageCodecs(ServerCodecConfigurer configurer) {
         configurer.defaultCodecs().jackson2JsonEncoder(new Jackson2JsonEncoder(objectMapper));
         configurer.defaultCodecs().jackson2JsonDecoder(new Jackson2JsonDecoder(objectMapper));
+
+        DefaultPartHttpMessageReader partReader = new DefaultPartHttpMessageReader();
+        partReader.setMaxHeadersSize(16384); // 16 KiB, default is 8 KiB
+        partReader.setEnableLoggingRequestDetails(true);
+
+        MultipartHttpMessageReader multipartReader = new MultipartHttpMessageReader(partReader);
+        multipartReader.setEnableLoggingRequestDetails(true);
+
+        configurer.defaultCodecs().multipartReader(multipartReader);
     }
 
     @Override
@@ -82,4 +93,6 @@ public class WebConfig extends WebFluxConfigurationSupport {
                 .allowedOrigins("*")
                 .allowedHeaders("*");
     }
+
+
 }
