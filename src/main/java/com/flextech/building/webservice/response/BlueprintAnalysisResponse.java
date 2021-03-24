@@ -14,7 +14,7 @@ public class BlueprintAnalysisResponse {
 
     private String message;
 
-    private List<Image> imgs = new ArrayList<>();
+    private List<String> imgs = new ArrayList<>();
 
     private List<Image> externalShapeDrawnImgs = new ArrayList<>();
 
@@ -24,11 +24,11 @@ public class BlueprintAnalysisResponse {
 
     private Building building;
 
-    public List<Image> getImgs() {
+    public List<String> getImgs() {
         return imgs;
     }
 
-    public void setImgs(List<Image> imgs) {
+    public void setImgs(List<String> imgs) {
         this.imgs = imgs;
     }
 

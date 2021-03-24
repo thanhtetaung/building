@@ -27,6 +27,10 @@ public class BlueprintAnalysisRequest {
     @Digits(integer = 10, fraction = 8)
     private Double floorAreaRatio;
 
+    @NotNull(message = "{error.validation.buildingCoverageRatio.empty}")
+    @Digits(integer = 10, fraction = 8)
+    private Double buildingCoverageRatio;
+
     @NotNull(message = "{error.validation.buildingArea.empty}")
     @Digits(integer = 10, fraction = 8)
     private Double buildingArea;
@@ -72,6 +76,7 @@ public class BlueprintAnalysisRequest {
         map.put("fire_zone", fireZone);
         map.put("total_floor_area", totalFloorArea);
         map.put("floor_area_ratio", floorAreaRatio);
+        map.put("building_coverage_ratio", buildingCoverageRatio);
         map.put("building_area", buildingArea);
         map.put("number_of_above_ground_floors", numberOfAboveGroundFloors);
         map.put("number_of_basement_floors", numberOfBasementFloors);

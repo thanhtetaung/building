@@ -584,7 +584,7 @@ public class BuildingService {
                 .retrieve()
                 .bodyToMono(BlueprintAnalysisResponse.class);
 //                .bodyToMono(String.class)
-//                .map(this::createBlueprintAnalysisResponse);
+//                .map(this::createBlueprintAnalysisResponse)
 //                .doOnNext(s -> log.info(s))
 //                .map(s -> new BlueprintAnalysisResponse());
 
