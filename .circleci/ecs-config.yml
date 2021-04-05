@@ -1,10 +1,7 @@
-master_only: &master_only
-  filters:
-    branches:
-      only: master
 version: 2.1
 orbs:
   aws-ecr: circleci/aws-ecr@6.15.3
+  aws-ecs: circleci/aws-ecs@2.0.0
 jobs:
   build:
     docker:
@@ -29,24 +26,17 @@ jobs:
       - aws-ecr/push-image:
           repo: building-service
           tag: 'latest,$CIRCLE_SHA1'
-  deploy:
-    machine:
-      enabled: true
-    steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "98:9b:ef:8b:7b:07:6f:df:09:3b:a7:ea:6d:c5:4f:e1"
-      - run:
-          name: Deploy to EC2 via SSH
-          command: |
-            ssh $SSH_USER@$SSH_HOST "cd /home/ubuntu/building/building-service/ && docker-compose down && docker-compose pull && docker-compose up -d"
+      - aws-ecs/update-service:
+          cluster-name: 'cluster-1'
+          container-image-name-updates: 'container=building-service,tag=${CIRCLE_SHA1}'
+          family: 'building-service'
+          verify-revision-is-deployed: true
 workflows:
   version: 2.1
   main:
     jobs:
       - build:
-          <<: *master_only
-      - deploy:
-          requires:
-            - build
-          <<: *master_only
+          filters:
+            branches:
+              only: 
+              - master
