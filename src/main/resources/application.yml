@@ -29,8 +29,8 @@ jwt:
     key: "and0X3Rva2VuLWJhc2VkX29wZW5hcGlfZm9yX3Jzb2NrZXRfYWNjZXNzX3Rva2Vu"
 husky:
   api:
-    baseUrl: "https://virtserver.swaggerhub.com/h2881/building-analysis/0.1"
-#    baseUrl: "https://asia-northeast1-groupware-22798.cloudfunctions.net"
+#    baseUrl: "https://virtserver.swaggerhub.com/h2881/building-analysis/0.1"
+    baseUrl: "https://asia-northeast1-groupware-22798.cloudfunctions.net"
 ---
 spring:
   config:

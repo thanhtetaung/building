@@ -582,9 +582,9 @@ public class BuildingService {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .retrieve()
-                .bodyToMono(BlueprintAnalysisResponse.class);
-//                .bodyToMono(String.class)
-//                .map(this::createBlueprintAnalysisResponse)
+//                .bodyToMono(BlueprintAnalysisResponse.class);
+                .bodyToMono(String.class)
+                .map(this::createBlueprintAnalysisResponse);
 //                .doOnNext(s -> log.info(s))
 //                .map(s -> new BlueprintAnalysisResponse());
 
