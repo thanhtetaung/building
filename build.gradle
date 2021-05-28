@@ -1,12 +1,12 @@
 plugins {
-    id 'org.springframework.boot' version '2.4.2'
+    id 'org.springframework.boot' version '2.5.0'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'java'
 }
 
 group = 'com.flextech'
 version = '1.0.0-SNAPSHOT'
-sourceCompatibility = '15'
+sourceCompatibility = '16'
 
 configurations {
     compileOnly {
@@ -24,16 +24,16 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
-    implementation 'org.modelmapper:modelmapper:2.3.8'
+    implementation 'org.modelmapper:modelmapper:2.4.4'
     implementation 'io.jsonwebtoken:jjwt-jackson:0.11.2'
     implementation 'io.jsonwebtoken:jjwt-impl:0.11.2'
     implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
-    implementation 'org.springdoc:springdoc-openapi-webflux-ui:1.5.2'
-    implementation 'org.springdoc:springdoc-openapi-data-rest:1.5.2'
-    implementation 'org.springdoc:springdoc-openapi-security:1.5.2'
+    implementation 'org.springdoc:springdoc-openapi-webflux-ui:1.5.9'
+    implementation 'org.springdoc:springdoc-openapi-data-rest:1.5.9'
+    implementation 'org.springdoc:springdoc-openapi-security:1.5.9'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
-    compile 'org.passay:passay:1.6.0'
+    implementation 'org.passay:passay:1.6.0'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
@@ -42,13 +42,13 @@ dependencies {
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'org.springframework.security:spring-security-test'
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
-    implementation 'org.apache.pdfbox:pdfbox:2.0.22'
-    implementation 'org.apache.pdfbox:pdfbox-tools:2.0.22'
-    implementation 'org.apache.tika:tika-core:2.0.0-ALPHA'
+    implementation 'org.apache.pdfbox:pdfbox:2.0.23'
+    implementation 'org.apache.pdfbox:pdfbox-tools:2.0.23'
+    implementation 'org.apache.tika:tika-core:2.0.0-BETA'
     implementation platform('software.amazon.awssdk:bom:2.16.22')
     implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:netty-nio-client'
-    implementation 'org.apache.avro:avro:1.9.2'
+    implementation 'org.apache.avro:avro:1.10.2'
 }
 
 test {

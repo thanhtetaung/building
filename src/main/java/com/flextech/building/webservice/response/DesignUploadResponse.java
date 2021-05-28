@@ -15,5 +15,7 @@ import java.util.List;
 public class DesignUploadResponse {
     private String path;
     private String mediaType;
+
+    @Builder.Default
     private List<String> imageList = new ArrayList<>();
 }
