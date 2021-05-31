@@ -573,10 +573,12 @@ public class BuildingService {
         try {
             body = new ObjectMapper().writerWithDefaultPrettyPrinter()
                     .writeValueAsString(request);
+            log.info("Request Body: " + body);
         } catch (JsonProcessingException e) {
             log.error(e.getMessage(), e);
             return Mono.error(e);
         }
+        log.info(huskyApiBaseUrl + "/building-blueprint-analysis");
         return webClient.post()
                 .uri(huskyApiBaseUrl + "/building-blueprint-analysis")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -592,6 +594,7 @@ public class BuildingService {
 
     private BlueprintAnalysisResponse createBlueprintAnalysisResponse(String body) {
         try {
+            log.info("API Result: " + body);
             return new ObjectMapper()
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                     .readValue(body, BlueprintAnalysisResponse.class);

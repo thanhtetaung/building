@@ -30,7 +30,7 @@ jwt:
 husky:
   api:
 #    baseUrl: "https://virtserver.swaggerhub.com/h2881/building-analysis/0.1"
-    baseUrl: "https://asia-northeast1-groupware-22798.cloudfunctions.net"
+    baseUrl: "https://asia-northeast1-groupware-22798.cloudfunctions.net/building-blueprint-analysis-dev"
 ---
 spring:
   config:
