@@ -45,10 +45,11 @@ dependencies {
     implementation 'org.apache.pdfbox:pdfbox:2.0.23'
     implementation 'org.apache.pdfbox:pdfbox-tools:2.0.23'
     implementation 'org.apache.tika:tika-core:2.0.0-BETA'
-    implementation platform('software.amazon.awssdk:bom:2.16.22')
+    implementation platform('software.amazon.awssdk:bom:2.16.74')
     implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:netty-nio-client'
     implementation 'org.apache.avro:avro:1.10.2'
+    implementation 'org.springframework.boot:spring-boot-starter-freemarker'
 }
 
 test {

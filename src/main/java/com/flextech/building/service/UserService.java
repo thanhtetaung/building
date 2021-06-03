@@ -2,21 +2,25 @@ package com.flextech.building.service;
 
 import com.flextech.building.authentication.JWTUtil;
 import com.flextech.building.common.webservice.InvalidInputException;
+import com.flextech.building.entity.Otp;
 import com.flextech.building.entity.User;
 import com.flextech.building.entity.UserToken;
+import com.flextech.building.entity.enums.Indicator;
+import com.flextech.building.repository.OtpRepository;
 import com.flextech.building.repository.UserRepository;
 import com.flextech.building.repository.UserTokenRepository;
-import com.flextech.building.webservice.request.AuthRequest;
-import com.flextech.building.webservice.request.ChangePasswordRequest;
-import com.flextech.building.webservice.request.RegisterRequest;
-import com.flextech.building.webservice.request.UpdateProfileRequest;
+import com.flextech.building.webservice.request.*;
 import com.flextech.building.webservice.response.AuthResponse;
+import freemarker.template.TemplateException;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -29,7 +33,15 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import javax.mail.MessagingException;
+import javax.validation.Valid;
+import javax.validation.constraints.Email;
+import javax.validation.constraints.NotNull;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 @SecurityScheme(
         name = "Authorization",
@@ -40,6 +52,7 @@ import java.util.Locale;
 )
 @RequestMapping(value = "/v1", produces = MediaType.APPLICATION_JSON_VALUE)
 @RestController
+@Slf4j
 public class UserService {
 
     @Autowired
@@ -56,6 +69,18 @@ public class UserService {
 
     @Autowired
     private MessageSource messageSource;
+
+    @Autowired
+    private OtpRepository otpRepository;
+
+    @Autowired
+    private EmailService emailService;
+
+    @Value("${support.email}")
+    private String supportEmail;
+
+    @Value("${verification.email.subject}")
+    private String verificationMailSubject;
 
     private AuthResponse createAuthResponse(UserToken token) {
         return AuthResponse.builder()
@@ -122,11 +147,68 @@ public class UserService {
     public Mono<User> register(@Validated @RequestBody RegisterRequest request) {
         return Mono.just(request)
                 .map(req -> mapper.map(req, User.class))
+                .flatMap(user -> this.checkEmailVerification(user, request.getOtp()))
                 .doOnNext(user -> user.setPassword(passwordEncoder.encode(request.getPassword())))
                 .flatMap(userRepository::save)
                 .onErrorMap(DuplicateKeyException.class, e -> new InvalidInputException(
                     messageSource.getMessage("error.validation.username.duplicate", null, Locale.getDefault())
                 ));
+    }
+
+    private Mono<User> checkEmailVerification(User user, String otp) {
+        return otpRepository.findByOtpAndLinkIdAndUsedInd(otp, user.getEmail(), Indicator.Y)
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new InvalidInputException(messageSource.getMessage("error.validation.email.notVerified", null, Locale.getDefault())))))
+                .map(o -> user);
+    }
+
+    @GetMapping(value = "/requestVerification")
+    public Mono<Void> requestVerification(@NotNull(message = "{error.validation.email.empty}")
+                             @Email(message = "{error.validation.email.invalid}")
+                             @Valid String email) {
+
+        return otpRepository.deleteAllByLinkId(email)
+                .then(Mono.defer(() -> Mono.just(this.createOtp(email))))
+                .flatMap(otpRepository::save)
+                .flatMap(this::sendVerificationMail)
+                .then(Mono.empty());
+
+    }
+
+    private Mono<Otp> sendVerificationMail(Otp otp) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("email", otp.getLinkId());
+        params.put("otp", otp.getOtp());
+        try {
+            emailService.sendMessage(supportEmail, otp.getLinkId(), verificationMailSubject, "verification.ftl", params);
+        } catch (IOException | TemplateException | MessagingException e) {
+           log.error(e.getMessage(), e);
+           return Mono.error(e);
+        }
+        return Mono.just(otp);
+    }
+
+    private Otp createOtp(String email) {
+        return Otp.builder()
+                .linkId(email)
+                .usedInd(Indicator.N)
+                .otp(RandomStringUtils.randomAlphanumeric(6))
+                .expireDateTime(LocalDateTime.now().plusMinutes(15))
+                .build();
+    }
+
+    @PostMapping(value = "/verify", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<Otp> verify(@RequestBody @Validated VerificationRequest request) {
+        return otpRepository.findByOtpAndLinkId(request.getOtp(), request.getEmail())
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new InvalidInputException(messageSource.getMessage("error.validation.otp.invalid", null, Locale.getDefault())))))
+                .filter(otp -> otp.getUsedInd() == Indicator.N)
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new InvalidInputException(messageSource.getMessage("error.validation.otp.used", null, Locale.getDefault())))))
+                .filter(otp -> otp.getExpireDateTime().isAfter(LocalDateTime.now()))
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new InvalidInputException(messageSource.getMessage("error.validation.otp.expired", null, Locale.getDefault())))))
+                .flatMap(otp -> {
+                    otp.setUsedInd(Indicator.Y);
+                    return otpRepository.save(otp);
+                });
+
     }
 
 }

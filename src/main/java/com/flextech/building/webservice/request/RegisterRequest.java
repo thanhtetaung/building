@@ -3,6 +3,7 @@ package com.flextech.building.webservice.request;
 import com.flextech.building.common.validation.annotation.ValidPassword;
 import lombok.Data;
 
+import javax.validation.constraints.Email;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 
@@ -24,5 +25,12 @@ public class RegisterRequest {
     @NotNull(message = "{error.validation.lastName.empty}")
     @Size(max = 50, message = "{error.validation.lastName.length}")
     private String lastName;
+
+    @NotNull(message = "{error.validation.email.empty}")
+    @Email(message = "{error.validation.email.invalid}")
+    private String email;
+
+    @NotNull(message = "{error.validation.otp.empty}")
+    private String otp;
 
 }

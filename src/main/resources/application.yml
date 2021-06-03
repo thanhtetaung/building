@@ -1,4 +1,18 @@
 spring:
+  mail:
+    host:
+      email-smtp.ap-northeast-1.amazonaws.com
+    username: xxx
+    password: xxx
+    port: 587
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+        debug: true
   application:
     name: building
   jackson:
@@ -31,6 +45,11 @@ husky:
   api:
 #    baseUrl: "https://virtserver.swaggerhub.com/h2881/building-analysis/0.1"
     baseUrl: "https://asia-northeast1-groupware-22798.cloudfunctions.net/building-blueprint-analysis-dev"
+support:
+  email: support@i-husky.net
+verification:
+  email:
+    subject: "メール認証"
 ---
 spring:
   config:
