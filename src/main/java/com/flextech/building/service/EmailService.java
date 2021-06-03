@@ -2,6 +2,7 @@ package com.flextech.building.service;
 
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -12,9 +13,11 @@ import org.springframework.web.reactive.result.view.freemarker.FreeMarkerConfigu
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
+@Slf4j
 public class EmailService {
 
     @Autowired
@@ -27,9 +30,9 @@ public class EmailService {
             throws IOException, TemplateException, MessagingException {
 
         Template freemarkerTemplate = freemarkerConfigurer.getConfiguration()
-                .getTemplate(templateName);
+                .getTemplate(templateName, Locale.JAPANESE, "UTF-8");
         String htmlBody = FreeMarkerTemplateUtils.processTemplateIntoString(freemarkerTemplate, params);
-
+        log.info(htmlBody);
         sendHtmlMessage(from, to, subject, htmlBody);
     }
 
