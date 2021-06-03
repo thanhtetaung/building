@@ -99,7 +99,7 @@ public class SecurityConfig {
                 .authorizeExchange()
                 .pathMatchers(HttpMethod.OPTIONS, "/**")
                     .permitAll()
-                .pathMatchers("/actuator/**", "/*/login", "/*/register", "/swagger-ui.html", "/webjars/**", "/api-docs/**")
+                .pathMatchers("/actuator/**", "/*/login", "/*/register", "/*/requestVerification", "/*/verify", "/swagger-ui.html", "/webjars/**", "/api-docs/**")
                     .permitAll()
                 .anyExchange()
                     .authenticated()
