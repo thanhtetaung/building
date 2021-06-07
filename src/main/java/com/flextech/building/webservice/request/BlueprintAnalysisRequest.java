@@ -1,16 +1,20 @@
 package com.flextech.building.webservice.request;
 
+import com.flextech.building.webservice.response.DesignUploadResponse;
 import lombok.Data;
 
-import javax.validation.constraints.Digits;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Pattern;
+import javax.validation.constraints.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Data
 public class BlueprintAnalysisRequest {
+
+    private String id;
+
+    @NotNull(message = "{error.validation.name.empty}")
+    @Size(max = 50, message = "{error.validation.name.length}")
+    private String name;
 
     @NotNull(message = "{error.validation.siteArea.empty}")
     @Digits(integer = 10, fraction = 8)
@@ -68,6 +72,9 @@ public class BlueprintAnalysisRequest {
     @NotEmpty(message = "{error.validation.fileMetaInfos.empty}")
     private List<List<FileMeta>> fileMetaInfos = new ArrayList<>();
 
+    @NotEmpty(message = "{error.validation.imageMetaInfos.empty}")
+    private List<DesignUploadResponse> imageMetaInfos = new ArrayList<>();
+
     private List<Double> floorAreas = new ArrayList<>();
 
     public Map<String, Object> json() {
@@ -95,7 +102,11 @@ public class BlueprintAnalysisRequest {
         }
         map.put("use_districts", Collections.singleton(useDistricts));
         map.put("building_coverage_ratio_deregulation", buildingCoverageRatioDeregulation);
+//        map.put("files", files);
+        List<String> files = new ArrayList<String>();
+        files.add("https://husky-public.s3-ap-northeast-1.amazonaws.com/%E4%B8%80%E5%BC%8F%E5%9B%B3%E9%9D%A2/%E4%B8%80%E5%BC%8F%E5%9B%B3%E9%9D%A2_JPM_ABBA_06-35-30-55-56.pdf");
         map.put("files", files);
+
         List<List<Map<String, Object>>> metas = fileMetaInfos.stream().map(fileMetas -> fileMetas.stream().map(fileMeta -> {
             Map<String, Object> meta = new HashMap<>();
             meta.put("blueprint_type", fileMeta.getBlueprintType());

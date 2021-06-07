@@ -2,6 +2,7 @@ package com.flextech.building.webservice.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
@@ -9,20 +10,20 @@ import java.util.List;
 
 @AllArgsConstructor
 @NoArgsConstructor
-
+@Data
 public class BlueprintAnalysisResponse {
 
     private String message;
 
     private List<String> imgs = new ArrayList<>();
 
-    private List<Image> externalShapeDrawnImgs = new ArrayList<>();
+    private List<ImageResponse> externalShapeDrawnImgs = new ArrayList<>();
 
-    private List<Image> fixtureSymbolDrawnImgs = new ArrayList<>();
+    private List<ImageResponse> fixtureSymbolDrawnImgs = new ArrayList<>();
 
-    private BuildingSite buildingSite;
+    private BuildingSiteResponse buildingSite;
 
-    private Building building;
+    private BuildingResponse building;
 
     public List<String> getImgs() {
         return imgs;
@@ -33,40 +34,40 @@ public class BlueprintAnalysisResponse {
     }
 
     @JsonProperty("externalShapeDrawnImgs")
-    public List<Image> getExternalShapeDrawnImgs() {
+    public List<ImageResponse> getExternalShapeDrawnImgs() {
         return externalShapeDrawnImgs;
     }
 
     @JsonProperty("external_shape_drawn_imgs")
-    public void setExternalShapeDrawnImgs(List<Image> externalShapeDrawnImgs) {
+    public void setExternalShapeDrawnImgs(List<ImageResponse> externalShapeDrawnImgs) {
         this.externalShapeDrawnImgs = externalShapeDrawnImgs;
     }
 
     @JsonProperty("fixtureSymbolDrawnImgs")
-    public List<Image> getFixtureSymbolDrawnImgs() {
+    public List<ImageResponse> getFixtureSymbolDrawnImgs() {
         return fixtureSymbolDrawnImgs;
     }
 
     @JsonProperty("fixture_symbol_drawn_imgs")
-    public void setFixtureSymbolDrawnImgs(List<Image> fixtureSymbolDrawnImgs) {
+    public void setFixtureSymbolDrawnImgs(List<ImageResponse> fixtureSymbolDrawnImgs) {
         this.fixtureSymbolDrawnImgs = fixtureSymbolDrawnImgs;
     }
 
     @JsonProperty("buildingSite")
-    public BuildingSite getBuildingSite() {
+    public BuildingSiteResponse getBuildingSite() {
         return buildingSite;
     }
 
     @JsonProperty("building_site")
-    public void setBuildingSite(BuildingSite buildingSite) {
+    public void setBuildingSite(BuildingSiteResponse buildingSite) {
         this.buildingSite = buildingSite;
     }
 
-    public Building getBuilding() {
+    public BuildingResponse getBuilding() {
         return building;
     }
 
-    public void setBuilding(Building building) {
+    public void setBuilding(BuildingResponse building) {
         this.building = building;
     }
 
