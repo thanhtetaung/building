@@ -102,9 +102,9 @@ public class BlueprintAnalysisRequest {
         }
         map.put("use_districts", Collections.singleton(useDistricts));
         map.put("building_coverage_ratio_deregulation", buildingCoverageRatioDeregulation);
-//        map.put("files", files);
-        List<String> files = new ArrayList<String>();
-        files.add("https://husky-public.s3-ap-northeast-1.amazonaws.com/%E4%B8%80%E5%BC%8F%E5%9B%B3%E9%9D%A2/%E4%B8%80%E5%BC%8F%E5%9B%B3%E9%9D%A2_JPM_ABBA_06-35-30-55-56.pdf");
+
+//        List<String> files = new ArrayList<String>();
+//        files.add("https://husky-public.s3-ap-northeast-1.amazonaws.com/%E4%B8%80%E5%BC%8F%E5%9B%B3%E9%9D%A2/%E4%B8%80%E5%BC%8F%E5%9B%B3%E9%9D%A2_JPM_ABBA_06-35-30-55-56.pdf");
         map.put("files", files);
 
         List<List<Map<String, Object>>> metas = fileMetaInfos.stream().map(fileMetas -> fileMetas.stream().map(fileMeta -> {
