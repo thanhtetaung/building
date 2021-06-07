@@ -5,10 +5,9 @@ import com.flextech.building.service.BuildingService;
 import com.jashmore.sqs.argument.payload.Payload;
 import com.jashmore.sqs.spring.container.basic.QueueListener;
 import lombok.extern.slf4j.Slf4j;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.configurationprocessor.json.JSONException;
-import org.springframework.boot.configurationprocessor.json.JSONObject;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import software.amazon.awssdk.services.sqs.model.*;
@@ -17,9 +16,6 @@ import software.amazon.awssdk.services.sqs.model.*;
 @Component
 @Slf4j
 public class SQSListener {
-
-    @Value("${aws.sqs.queueUrl}")
-    private String queueUrl;
 
     @Autowired
     private BuildingService buildingService;
