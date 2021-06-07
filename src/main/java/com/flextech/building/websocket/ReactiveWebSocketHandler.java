@@ -52,6 +52,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
     }
 
     public Mono<Void> sendStatusUpdatedEvent(String userId, String executionArn) {
+        log.info("sending websocket message: {\"executionArn\": \"" + executionArn + "\"}");
         return Mono.justOrEmpty(sessions.get(userId))
                 .flatMap(session -> session.send(
                         Mono.just(
