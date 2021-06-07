@@ -8,6 +8,8 @@ import javax.validation.constraints.NotNull;
 @Data
 public class FileMeta {
 
+    private Boolean include;
+
     @NotNull(message = "{error.validation.blueprintType.empty}")
     private String blueprintType;
 

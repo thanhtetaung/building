@@ -2,7 +2,7 @@ package com.flextech.building.webservice.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class BuildingSite {
+public class BuildingSiteResponse {
 
     private Double siteArea;
 

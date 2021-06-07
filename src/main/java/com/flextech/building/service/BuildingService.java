@@ -8,11 +8,19 @@ import com.flextech.building.aws.s3.FluxResponseProvider;
 import com.flextech.building.aws.s3.S3ClientConfigurationProperties;
 import com.flextech.building.aws.s3.UploadFailedException;
 import com.flextech.building.common.model.FileData;
+import com.flextech.building.common.webservice.DataNotFoundException;
 import com.flextech.building.common.webservice.InvalidInputException;
+import com.flextech.building.entity.Building;
 import com.flextech.building.entity.User;
+import com.flextech.building.entity.enums.ProcessingStatus;
+import com.flextech.building.entity.pojo.BlueprintAnalysisResult;
+import com.flextech.building.repository.BuildingRepository;
 import com.flextech.building.webservice.request.BlueprintAnalysisRequest;
+import com.flextech.building.webservice.response.BluePrintAnalysisResponseWrapper;
 import com.flextech.building.webservice.response.BlueprintAnalysisResponse;
 import com.flextech.building.webservice.response.DesignUploadResponse;
+import com.flextech.building.webservice.response.ExecutionResponse;
+import com.flextech.building.websocket.ReactiveWebSocketHandler;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.util.ByteBufferInputStream;
@@ -23,6 +31,7 @@ import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
 import org.bson.ByteBuf;
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
@@ -75,8 +84,18 @@ public class BuildingService {
     @Autowired
     private WebClient webClient;
 
+    @Autowired
+    private ModelMapper mapper;
+
     @Value("${husky.api.baseUrl}")
     private String huskyApiBaseUrl;
+
+    @Autowired
+    private BuildingRepository buildingRepository;
+
+    @Autowired
+    private ReactiveWebSocketHandler webSocketHandler;
+
 
     public BuildingService() throws TikaException, IOException {
         tika = new TikaConfig();
@@ -522,9 +541,6 @@ public class BuildingService {
                             .header(HttpHeaders.CONTENT_LENGTH, Long.toString(bytes.length))
                             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
                             .body((Resource)new ByteArrayResource(bytes));
-                })
-                .doOnError(throwable -> {
-                    throwable.printStackTrace();
                 });
     }
 
@@ -555,9 +571,10 @@ public class BuildingService {
 
     @SecurityRequirement(name = "Authorization")
     @PostMapping(value = "/v1/blueprintAnalysis")
-    public Mono<BlueprintAnalysisResponse> uploadDesign(@RequestBody BlueprintAnalysisRequest request, Authentication auth) throws IOException {
+    public Mono<Building> uploadDesign(@RequestBody BlueprintAnalysisRequest request, Authentication auth) throws IOException {
         AccessAuthenticationToken authToken = (AccessAuthenticationToken)auth;
         User user = (User)authToken.getDetails();
+
         return Mono.just(request)
                 .map(req -> req.json())
                 .doOnNext(json -> {
@@ -565,10 +582,13 @@ public class BuildingService {
                     json.put("user_id", user.getId());
                     log.info(json.toString());
                 })
-                .flatMap(this::invokeHuskyBlueprintAnalysisAPI);
+                .flatMap(this::invokeHuskyBlueprintAnalysisV2API)
+                .flatMap(response -> this.saveBlueprintAnalysisRequest(request, user.getId(), response.getExecutionArn(), response.getStartDate())
+//                    return this.saveBlueprintAnalysisRequest(request, user.getId(), response)
+                );
     }
 
-    private Mono<BlueprintAnalysisResponse> invokeHuskyBlueprintAnalysisAPI(Map<String, Object> request) {
+    private Mono<BluePrintAnalysisResponseWrapper> invokeHuskyBlueprintAnalysisAPI(Map<String, Object> request) {
         String body = null;
         try {
             body = new ObjectMapper().writerWithDefaultPrettyPrinter()
@@ -592,16 +612,162 @@ public class BuildingService {
 
     }
 
-    private BlueprintAnalysisResponse createBlueprintAnalysisResponse(String body) {
+    private Mono<ExecutionResponse> invokeHuskyBlueprintAnalysisV2API(Map<String, Object> request) {
+        String body = null;
+        try {
+            body = new ObjectMapper().writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(request);
+            log.info("Request Body: " + body);
+        } catch (JsonProcessingException e) {
+            log.error(e.getMessage(), e);
+            return Mono.error(e);
+        }
+        log.info(huskyApiBaseUrl + "/building-blueprint-analysis/execution");
+        return webClient.post()
+                .uri(huskyApiBaseUrl + "/building-blueprint-analysis/execution")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+//                .bodyToMono(BlueprintAnalysisResponse.class);
+                .bodyToMono(String.class)
+                .map(this::createBlueprintAnalysisResponseV2);
+//                .doOnNext(s -> log.info(s))
+//                .map(s -> new BlueprintAnalysisResponse());
+
+    }
+
+    private ExecutionResponse createBlueprintAnalysisResponseV2(String body) {
         try {
             log.info("API Result: " + body);
             return new ObjectMapper()
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-                    .readValue(body, BlueprintAnalysisResponse.class);
+                    .readValue(body, ExecutionResponse.class);
         } catch (JsonProcessingException e) {
             log.error(e.getMessage(), e);
             throw new RuntimeException(e.getMessage());
         }
     }
+
+    private BluePrintAnalysisResponseWrapper createBlueprintAnalysisResponse(String body) {
+        try {
+            log.info("API Result: " + body);
+            BluePrintAnalysisResponseWrapper wrapper = new ObjectMapper()
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                    .readValue(body, BluePrintAnalysisResponseWrapper.class);
+            return wrapper;
+        } catch (JsonProcessingException e) {
+            log.error(e.getMessage(), e);
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+
+    private Mono<Building> saveBlueprintAnalysisRequest(BlueprintAnalysisRequest request, String userId, String executionArn, Double startDate) {
+        return Mono.justOrEmpty(request.getId())
+                .flatMap(buildingRepository::findById)
+                .doOnNext(building -> mapper.map(request, building))
+                .switchIfEmpty(Mono.defer(() -> Mono.just(mapper.map(request, Building.class))))
+                .flatMap(building -> {
+                    building.setExecutionArn(executionArn);
+                    building.setUserId(userId);
+                    building.setStartDate(startDate);
+                    building.setProcessingStatus(ProcessingStatus.PROCESSING);
+                    return buildingRepository.save(building);
+                })
+                .flatMap(buildingRepository::save);
+    }
+
+    private Mono<Building> saveBlueprintAnalysisRequest(BlueprintAnalysisRequest request, String userId, BlueprintAnalysisResponse response) {
+        BlueprintAnalysisResult result = mapper.map(response, BlueprintAnalysisResult.class);
+
+        return Mono.justOrEmpty(request.getId())
+                .flatMap(buildingRepository::findById)
+                .doOnNext(building -> mapper.map(request, building))
+                .switchIfEmpty(Mono.defer(() -> Mono.just(mapper.map(request, Building.class))))
+                .flatMap(building -> {
+                    building.setUserId(userId);
+                    building.setResult(result);
+                    building.setProcessingStatus(ProcessingStatus.SUCCEEDED);
+                    return buildingRepository.save(building);
+                });
+    }
+
+    private Mono<Building> saveBlueprintAnalysisResult(BluePrintAnalysisResponseWrapper wrapper, String executionArn, Double startDate) {
+        final BlueprintAnalysisResult result = wrapper.getStatus() == ProcessingStatus.SUCCEEDED ? mapper.map(wrapper.getBlueprintAnalysisResponse(), BlueprintAnalysisResult.class) : null;
+
+        return Mono.justOrEmpty(executionArn)
+                .flatMap(s -> buildingRepository.findByExecutionArnAndStartDate(executionArn, startDate))
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new InvalidInputException(
+                    messageSource.getMessage("error.executionArn.notFound", null, Locale.getDefault())
+                ))))
+                .flatMap(b -> {
+                    b.setResult(result);
+                    b.setProcessingStatus(wrapper.getStatus());
+                    return buildingRepository.save(b);
+                });
+    }
+
+
+
+    @SecurityRequirement(name = "Authorization")
+    @GetMapping(value = "/v1/buildings")
+    public Flux<Building> getBuildings(Authentication auth) {
+        User user = (User)auth.getDetails();
+        return buildingRepository.findAllByUserIdOrderByLastUpdateDateDesc(user.getId());
+    }
+
+    @SecurityRequirement(name = "Authorization")
+    @GetMapping(value = "/v1/buildings/{id}")
+    public Mono<Building> getBuildings(@PathVariable(name = "id") String id, Authentication auth) {
+        User user = (User)auth.getDetails();
+        return buildingRepository.findByIdAndUserId(id, user.getId())
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new DataNotFoundException())));
+    }
+
+    public Mono<Building> updateResult(String executionArn) {
+        return buildingRepository.findByExecutionArn(executionArn)
+                .flatMap(building -> {
+                    return this.invokeHuskyBlueprintAnalysisResultAPI(this.prepareResultAPIParams(building))
+                            .flatMap(response -> this.saveBlueprintAnalysisResult(response, executionArn, building.getStartDate()));
+                }).flatMap(building -> {
+                    return webSocketHandler.sendStatusUpdatedEvent(building.getUserId(), building.getExecutionArn())
+                            .map(unused -> building);
+                });
+    }
+
+
+
+    private Map<String, Object> prepareResultAPIParams(Building building) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("executionArn", building.getExecutionArn());
+        params.put("startDate", building.getStartDate());
+        return params;
+    }
+
+    private Mono<BluePrintAnalysisResponseWrapper> invokeHuskyBlueprintAnalysisResultAPI(Map<String, Object> request) {
+        String body = null;
+        try {
+            body = new ObjectMapper().writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(request);
+            log.info("Request Body: " + body);
+        } catch (JsonProcessingException e) {
+            log.error(e.getMessage(), e);
+            return Mono.error(e);
+        }
+        log.info(huskyApiBaseUrl + "/building-blueprint-analysis");
+        return webClient.post()
+                .uri(huskyApiBaseUrl + "/building-blueprint-analysis/result")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+//                .bodyToMono(BlueprintAnalysisResponse.class);
+                .bodyToMono(String.class)
+                .map(this::createBlueprintAnalysisResponse);
+//                .doOnNext(s -> log.info(s))
+//                .map(s -> new BlueprintAnalysisResponse());
+
+    }
+
+
+
 
 }

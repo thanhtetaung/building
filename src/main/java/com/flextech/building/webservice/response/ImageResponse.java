@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Image {
+public class ImageResponse {
     private String img;
     private Integer floor;
     private Integer area;
