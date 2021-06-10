@@ -30,7 +30,6 @@ import org.apache.tika.config.TikaConfig;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
-import org.bson.ByteBuf;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -670,7 +669,7 @@ public class BuildingService {
                     building.setExecutionArn(executionArn);
                     building.setUserId(userId);
                     building.setStartDate(startDate);
-                    building.setProcessingStatus(ProcessingStatus.PROCESSING);
+                    building.setProcessingStatus(ProcessingStatus.RUNNING);
                     return buildingRepository.save(building);
                 })
                 .flatMap(buildingRepository::save);
@@ -692,7 +691,7 @@ public class BuildingService {
     }
 
     private Mono<Building> saveBlueprintAnalysisResult(BluePrintAnalysisResponseWrapper wrapper, String executionArn, Double startDate) {
-        final BlueprintAnalysisResult result = wrapper.getStatus() == ProcessingStatus.SUCCEEDED ? mapper.map(wrapper.getBlueprintAnalysisResponse(), BlueprintAnalysisResult.class) : null;
+        final BlueprintAnalysisResult result = wrapper.getStatus() == ProcessingStatus.SUCCEEDED ? mapper.map(wrapper.getOutput(), BlueprintAnalysisResult.class) : null;
 
         return Mono.justOrEmpty(executionArn)
                 .flatMap(s -> buildingRepository.findByExecutionArnAndStartDate(executionArn, startDate))
@@ -727,7 +726,9 @@ public class BuildingService {
         return buildingRepository.findByExecutionArn(executionArn)
                 .flatMap(building -> {
                     return this.invokeHuskyBlueprintAnalysisResultAPI(this.prepareResultAPIParams(building))
-                            .flatMap(response -> this.saveBlueprintAnalysisResult(response, executionArn, building.getStartDate()));
+                            .filter(r -> r.getStatus() != ProcessingStatus.RUNNING)
+                            .flatMap(response -> this.saveBlueprintAnalysisResult(response, executionArn, building.getStartDate()))
+                            .switchIfEmpty(Mono.defer(() -> Mono.error(new RuntimeException("Blueprint API not finished yet."))));
                 }).flatMap(building -> {
                     return webSocketHandler.sendStatusUpdatedEvent(building.getUserId(), building.getExecutionArn())
                             .map(unused -> building);
