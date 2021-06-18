@@ -47,7 +47,6 @@ public class BlueprintAnalysisRequest {
     @Digits(integer = 5, fraction = 0)
     private Integer numberOfAboveGroundFloors;
 
-    @NotNull(message = "{error.validation.numberOfBasementFloors.empty}")
     @Digits(integer = 5, fraction = 0)
     private Integer numberOfBasementFloors;
 
@@ -86,8 +85,12 @@ public class BlueprintAnalysisRequest {
         map.put("building_coverage_ratio", buildingCoverageRatio);
         map.put("building_area", buildingArea);
         map.put("number_of_above_ground_floors", numberOfAboveGroundFloors);
-        map.put("number_of_basement_floors", numberOfBasementFloors);
         map.put("floor_areas", floorAreas);
+
+        if (numberOfBasementFloors != null) {
+            map.put("number_of_basement_floors", numberOfBasementFloors);
+        }
+
         if (frontalRoadWidth != null) {
             map.put("frontal_road_width", frontalRoadWidth);
         }

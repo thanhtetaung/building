@@ -32,6 +32,7 @@ public class AuthenticationHandler implements ServerAuthenticationFailureHandler
     public Mono<Void> createErrorResponse(ServerHttpResponse response, String message, HttpStatus status) {
         response.setStatusCode(status);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        response.getHeaders().setAccessControlAllowOrigin("*");
 
         ErrorResponse errorResponse = new ErrorResponse().builder()
                 .message(message)
