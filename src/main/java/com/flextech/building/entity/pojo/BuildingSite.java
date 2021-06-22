@@ -11,4 +11,6 @@ public class BuildingSite {
     private Double floorAreaRatioLegalMultiplier;
 
     private Double floorAreaRatioLimitAddingValue;
+
+    private Double minFloorAreaRatioLimit;
 }

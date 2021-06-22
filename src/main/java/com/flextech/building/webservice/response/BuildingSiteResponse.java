@@ -12,6 +12,8 @@ public class BuildingSiteResponse {
 
     private Double floorAreaRatioLimitAddingValue;
 
+    private Double minFloorAreaRatioLimit;
+
     @JsonProperty("siteArea")
     public Double getSiteArea() {
         return siteArea;
@@ -50,5 +52,15 @@ public class BuildingSiteResponse {
     @JsonProperty("floor_area_ratio_limit_adding_value")
     public void setFloorAreaRatioLimitAddingValue(Double floorAreaRatioLimitAddingValue) {
         this.floorAreaRatioLimitAddingValue = floorAreaRatioLimitAddingValue;
+    }
+
+    @JsonProperty("minFloorAreaRatioLimit")
+    public Double getMinFloorAreaRatioLimit() {
+        return minFloorAreaRatioLimit;
+    }
+
+    @JsonProperty("min_floor_area_ratio_limit")
+    public void setMinFloorAreaRatioLimit(Double minFloorAreaRatioLimit) {
+        this.minFloorAreaRatioLimit = minFloorAreaRatioLimit;
     }
 }
