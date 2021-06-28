@@ -113,14 +113,14 @@ public class BlueprintAnalysisRequest {
         List<List<Map<String, Object>>> metas = fileMetaInfos.stream().map(fileMetas -> fileMetas.stream().map(fileMeta -> {
             Map<String, Object> meta = new HashMap<>();
             meta.put("blueprint_type", fileMeta.getBlueprintType());
-            if (fileMeta.getDirection() != null) {
+            if (fileMeta.getDirection() != null && !fileMeta.getDirection().isEmpty()) {
                 meta.put("direction", fileMeta.getDirection());
             }
             if (fileMeta.getArea() != null) {
                 meta.put("area", fileMeta.getArea());
             }
-            if (fileMeta.getFloors() != null) {
-                meta.put("floors", Collections.singleton(fileMeta.getFloors()));
+            if (fileMeta.getFloors() != null && !fileMeta.getFloors().isEmpty()) {
+                meta.put("floors", fileMeta.getFloors());
             }
             return meta;
         }).collect(Collectors.toList()))
