@@ -4,6 +4,8 @@ import lombok.Data;
 
 import javax.validation.constraints.Digits;
 import javax.validation.constraints.NotNull;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 public class FileMeta {
@@ -13,11 +15,10 @@ public class FileMeta {
     @NotNull(message = "{error.validation.blueprintType.empty}")
     private String blueprintType;
 
-    private String direction;
+    private List<String> direction;
 
     @Digits(integer = 10, fraction = 8,message = "{error.validation.area.notDigit}")
     private Double area;
 
-    @Digits(integer = 5, fraction = 0,message = "{error.validation.floors.notDigit}")
-    private Integer floors;
+    private List<Integer> floors;
 }
