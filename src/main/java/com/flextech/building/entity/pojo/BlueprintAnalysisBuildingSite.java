@@ -3,7 +3,7 @@ package com.flextech.building.entity.pojo;
 import lombok.Data;
 
 @Data
-public class BuildingSite {
+public class BlueprintAnalysisBuildingSite {
     private Double siteArea;
 
     private Double floorAreaRatioLimit;

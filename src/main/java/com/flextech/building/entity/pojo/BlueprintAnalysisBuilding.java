@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class BuildingInfo {
+public class BlueprintAnalysisBuilding {
     private Double buildingArea;
 
     private Double totalFloorArea;

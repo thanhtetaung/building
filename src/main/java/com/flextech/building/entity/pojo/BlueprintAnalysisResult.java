@@ -16,7 +16,7 @@ public class BlueprintAnalysisResult {
 
     private List<Image> fixtureSymbolDrawnImgs = new ArrayList<>();
 
-    private BuildingSite buildingSite;
+    private BlueprintAnalysisBuildingSite buildingSite;
 
-    private BuildingInfo building;
+    private BlueprintAnalysisBuilding building;
 }
